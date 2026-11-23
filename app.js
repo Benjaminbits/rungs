@@ -9,8 +9,15 @@ let S,solo,duoS=null,mode="solo",matchId=null,M=null,me=null,matches=[],saving=f
 
 /* ---------- ladder engine ---------- */
 function neighbors(w){const out=[];for(let i=0;i<4;i++)for(let c=97;c<123;c++){const ch=String.fromCharCode(c);if(ch===w[i])continue;const x=w.slice(0,i)+ch+w.slice(i+1);if(DICT.has(x))out.push(x)}return out}
-function nextOnPath(from,to){const prev=new Map([[from,null]]);const q=[from];while(q.length){const u=q.shift();if(u===to)break;for(const v of neighbors(u))if(!prev.has(v)){prev.set(v,u);q.push(v)}}
+function nextOnPath(from,to){/* shortest route; among equal routes, the one through the most medical words */
+  const cost=w=>MED[w]?99:100;const dist=new Map([[from,0]]),prev=new Map([[from,null]]),open=[[0,from]],done=new Set();
+  while(open.length){let bi=0;for(let i=1;i<open.length;i++)if(open[i][0]<open[bi][0])bi=i;const [d,u]=open.splice(bi,1)[0];if(done.has(u))continue;done.add(u);if(u===to)break;
+    for(const v of neighbors(u)){const nd=d+cost(v);if(!dist.has(v)||nd<dist.get(v)){dist.set(v,nd);prev.set(v,u);open.push([nd,v])}}}
   if(!prev.has(to))return null;let x=to;while(prev.get(x)!==from&&prev.get(x)!==null)x=prev.get(x);return x}
+function renderGloss(){const g=$("gloss");if(!g)return;const seen=new Set();const items=[];
+  const add=(w,tag)=>{if(!MED[w]||seen.has(w))return;seen.add(w);items.push(`<div class="gl${tag?" "+tag:""}"><b>${w.toUpperCase()}</b><span>${esc(MED[w])}</span></div>`)};
+  add(S.start,"from");add(S.goal,"to");S.path.slice(1).forEach(w=>add(w,"found"));
+  g.innerHTML=`<h3>Medical terms</h3>`+items.join("")}
 function fresh(i,key){const [a,b,par]=PUZZLES[i];return{idx:i,start:a,goal:b,par,path:[a],typed:"",hints:0,won:false,key:key||null}}
 function diffPos(a,b){for(let i=0;i<4;i++)if(a[i]!==b[i])return i;return -1}
 function say(t,cls){const m=$("msg");m.textContent=t;m.className="msg"+(cls?" "+cls:"")}
@@ -18,23 +25,23 @@ function playable(){return S&&!S.won&&!$("board").hidden}
 function renderBoard(){
   const L=$("ladder");L.innerHTML="";
   S.path.forEach((w,k)=>{const r=document.createElement("div");r.className="row done";const ch=k?diffPos(S.path[k-1],w):-1;
-    for(let i=0;i<4;i++){const t=document.createElement("div");t.className="tile"+(i===ch?" changed":"");t.textContent=w[i];r.appendChild(t)}L.appendChild(r)});
+    for(let i=0;i<4;i++){const t=document.createElement("div");t.className="tile"+(i===ch?" changed":"");t.textContent=w[i];r.appendChild(t)}if(MED[w])r.classList.add("isMed"),r.title=MED[w];L.appendChild(r)});
   const last=S.path[S.path.length-1];
   if(!S.won){const r=document.createElement("div");r.className="row current";r.id="cur";
     for(let i=0;i<4;i++){const t=document.createElement("div");const c=S.typed[i];t.className="tile"+(c?"":" carry")+(i===S.typed.length?" cursor":"");t.textContent=c||"";r.appendChild(t)}L.appendChild(r);
-    const g=document.createElement("div");g.className="row goal";
+    const g=document.createElement("div");g.className="row goal isMed";
     for(let i=0;i<4;i++){const t=document.createElement("div");t.className="tile"+(last[i]===S.goal[i]?" hit":"");t.textContent=S.goal[i];g.appendChild(t)}L.appendChild(g)}
-  const steps=S.path.length-1;$("steps").textContent=steps;$("par").textContent=S.par;$("hints").textContent=S.hints;
+  const steps=S.path.length-1;const mc=S.path.slice(1).filter(w=>MED[w]&&w!==S.goal).length;$("medc").textContent=mc;renderGloss();$("steps").textContent=steps;$("par").textContent=S.par;$("hints").textContent=S.hints;
   const duo=mode==="duo";
   $("nav").hidden=duo;$("giveup").hidden=!duo;$("reset").hidden=duo;
   if(duo){$("lastlab").textContent="Round";$("best").textContent=M?Math.min(M.rounds.length,ROUNDS)+"/"+ROUNDS:"–"}
-  else{$("lastlab").textContent="Best";const best=(store.get("rungs-best")||{})[S.idx];$("best").textContent=best?best:"–";
+  else{$("lastlab").textContent="Best";const best=(store.get("rungs-med-best")||{})[S.idx];$("best").textContent=best?best:"–";
     $("pnum").textContent="#"+(S.idx+1)+(S.idx===today?" today":"")}
   $("undo").disabled=S.path.length<2||S.won;$("hint").disabled=S.won;$("giveup").disabled=S.won;
   const wb=$("winbox");
   if(S.won&&!duo){const over=steps-S.par;const verdict=over<=0?(S.hints?"Par, with help":"Perfect ladder"):over===1?"One over par":over+" over par";
     wb.hidden=false;wb.className="win";
-    wb.innerHTML=`<h2>${verdict}</h2><p>${S.start.toUpperCase()} to ${S.goal.toUpperCase()} in ${steps} rungs${S.hints?`, ${S.hints} hint${S.hints>1?"s":""}`:""}. Par is ${S.par}.</p><button id="go">Next puzzle</button>`;
+    wb.innerHTML=`<h2>${verdict}</h2><p>${S.start.toUpperCase()} to ${S.goal.toUpperCase()} in ${steps} rungs${S.hints?`, ${S.hints} hint${S.hints>1?"s":""}`:""}. Par is ${S.par}.${mc?` You climbed through ${mc} medical word${mc>1?"s":""} on the way.`:""}</p><button id="go">Next puzzle</button>`;
     $("go").onclick=()=>loadSolo(S.idx+1);$("kb").hidden=true}
   else if(S.won&&duo){wb.hidden=false;wb.className="win";
     wb.innerHTML=saveErr?`<h2>Your result did not save</h2><p>${esc(saveErr)}</p><button id="go">Try again</button>`:`<h2>Sending your ladder…</h2>`;
@@ -52,7 +59,7 @@ function submit(){
   if(S.path.includes(w)){say(`You already used ${w.toUpperCase()}.`,"err");return shake()}
   S.path.push(w);S.typed="";
   if(w===S.goal){S.won=true;const st=S.path.length-1;
-    if(mode==="solo"){const b=store.get("rungs-best")||{};if(!b[S.idx]||st<b[S.idx]){b[S.idx]=st;store.set("rungs-best",b)}say("Reached the top.","ok")}
+    if(mode==="solo"){const b=store.get("rungs-med-best")||{};if(!b[S.idx]||st<b[S.idx]){b[S.idx]=st;store.set("rungs-med-best",b)}say("Reached the top.","ok")}
     else{say("");renderBoard();return finishTurn({steps:st,hints:S.hints,path:S.path.slice()})}}
   else say("");
   renderBoard()}

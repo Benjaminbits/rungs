@@ -1,7 +1,7 @@
 {
-  "name": "Rungs",
+  "name": "Rungs: Medical edition",
   "short_name": "Rungs",
-  "description": "A word-ladder game. Change one letter at a time to reach the target.",
+  "description": "A medical word-ladder game. Climb from one medical term to another, one letter at a time.",
   "start_url": "./",
   "scope": "./",
   "display": "standalone",
